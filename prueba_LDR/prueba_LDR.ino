@@ -1,8 +1,4 @@
-#include <Wire.h>
-
-#define LCD_ADDR 0x27
-#define SDA_PIN 17
-#define SCL_PIN 16
+#include <Arduino.h>
 
 class Componente {
 protected:
@@ -18,152 +14,106 @@ public:
     int getPin() { return pin; }
 };
 
-class LCD : public Componente {
-public:
-    LCD(int sda, int scl, String n = "LCD") : Componente(0, n) {
-        // Nota: pin no se usa para LCD I2C
-    }
-    
-    void iniciar() override {
-        Wire.begin(SDA_PIN, SCL_PIN);
-        delay(100);
-        
-        // Inicialización LCD
-        enviar(0x03, 0); delay(5);
-        enviar(0x03, 0); delay(1);
-        enviar(0x03, 0); delay(1);
-        enviar(0x02, 0);
-        enviar(0x28, 0);
-        enviar(0x0C, 0);
-        enviar(0x06, 0);
-        enviar(0x01, 0);
-        delay(2);
-    }
-    
-    void escribir(int valor) override {
-        // No aplica para LCD
-    }
-    
-    int leer() override {
-        return 0; // LCD no lee
-    }
-    
-    void mostrarInfo(int ldrVal, String modo, int ledsOn) {
-        // Línea 1: LDR y Modo
-        escribirTexto("LDR:" + String(ldrVal) + " Modo:" + modo, 0, 0);
-        
-        // Línea 2: LEDs encendidos
-        escribirTexto("LEDs On:" + String(ledsOn) + "/8", 0, 1);
-    }
-    
+class LED : public Componente {
 private:
-    void enviar(uint8_t valor, uint8_t modo) {
-        uint8_t alta = (valor & 0xF0) | 0x08 | modo;
-        uint8_t baja = ((valor << 4) & 0xF0) | 0x08 | modo;
-        
-        Wire.beginTransmission(LCD_ADDR);
-        Wire.write(alta); Wire.write(alta | 0x04); Wire.write(alta);
-        Wire.write(baja); Wire.write(baja | 0x04); Wire.write(baja);
-        Wire.endTransmission();
-        delayMicroseconds(100);
+    int brillo;
+    bool estado;
+public:
+    LED(int p, String n = "LED") : Componente(p, n), brillo(0), estado(false) {}
+    
+    void iniciar() override { 
+        pinMode(pin, OUTPUT); 
+        analogWrite(pin, 0); 
     }
     
-    void escribirTexto(String texto, uint8_t col, uint8_t fila) {
-        uint8_t addr = (fila == 0) ? 0x80 : 0xC0;
-        addr += col;
-        enviar(addr, 0);
-        
-        for (int i = 0; i < texto.length(); i++) {
-            enviar(texto.charAt(i), 1);
-        }
+    void escribir(int valor) override { 
+        brillo = constrain(valor, 0, 255); 
+        analogWrite(pin, brillo); 
+        estado = (brillo > 0); 
+    }
+    
+    int leer() override { return brillo; }
+    
+    void encender() { escribir(255); }
+    void apagar() { escribir(0); }
+    bool estaEncendido() { return estado; }
+};
+
+class SensorLDR : public Componente {
+private:
+    const int LUZ_NORMAL = 700;   // Valor con luz
+    const int OSCURO_MAX = 300;   // Máximo valor considerado oscuro
+    
+public:
+    SensorLDR(int p, String n = "LDR") : Componente(p, n) {}
+    
+    void iniciar() override { 
+        pinMode(pin, INPUT); 
+    }
+    
+    void escribir(int valor) override {}
+    
+    int leer() override { 
+        return analogRead(pin); 
+    }
+    
+    bool estaOscuro() {
+        return leer() < OSCURO_MAX;
+    }
+    
+    int getPorcentajeLuz() {
+        // Convierte 300-700 a 0-100%
+        return map(constrain(leer(), OSCURO_MAX, LUZ_NORMAL), 
+                   OSCURO_MAX, LUZ_NORMAL, 0, 100);
     }
 };
 
-class SensorSimulado : public Componente {
-private:
-    int valorSimulado;
-    
-public:
-    SensorSimulado(int p, String n = "Sensor") : Componente(p, n), valorSimulado(0) {}
-    
-    void iniciar() override {
-        randomSeed(analogRead(0));
-    }
-    
-    void escribir(int valor) override {
-        // No aplica
-    }
-    
-    int leer() override {
-        // Simula lectura LDR (300-700)
-        valorSimulado = random(300, 701);
-        return valorSimulado;
-    }
-};
-
-class SistemaModos {
-private:
-    const char* modos[6] = {"NOCHE", "LECTURA", "RELAJ", "FIESTA", "AUTO", "MANUAL"};
-    int modoActual;
-    
-public:
-    SistemaModos() : modoActual(0) {}
-    
-    String getModoActual() {
-        return String(modos[modoActual]);
-    }
-    
-    void cambiarModo() {
-        modoActual = (modoActual + 1) % 6;
-    }
-    
-    int getLEDsEncendidos() {
-        // Simula LEDs encendidos (0-8)
-        return random(0, 9);
-    }
-};
-
-// Instancias con polimorfismo
-LCD pantalla(17, 16, "Pantalla LCD");
-SensorSimulado ldrSimulado(34, "LDR Simulado");
-SistemaModos modos;
+LED led(15, "LED Sala");
+SensorLDR ldr(34, "Sensor LDR");
 Componente* componentes[2];
 
 void setup() {
     Serial.begin(115200);
     
-    // Configurar componentes con polimorfismo
-    componentes[0] = &pantalla;
-    componentes[1] = &ldrSimulado;
+    componentes[0] = &led;
+    componentes[1] = &ldr;
     
     for (int i = 0; i < 2; i++) {
         componentes[i]->iniciar();
     }
     
-    Serial.println("Sistema LCD listo");
-    Serial.println("Mostrando: LDR, Modo, LEDs On");
+    Serial.println("Sistema LDR-LED ajustado a tu rango");
+    Serial.println("Rango: 300 (oscuridad) - 700 (luz normal)");
+    Serial.println("<300 = LED ON | >300 = LED OFF");
 }
 
 void loop() {
-    // Obtener valores (simulados)
-    int valorLDR = ldrSimulado.leer();
-    String modo = modos.getModoActual();
-    int ledsOn = modos.getLEDsEncendidos();
+    int valorLDR = ldr.leer();
+    int porcentaje = ldr.getPorcentajeLuz();
     
-    // Mostrar en LCD
-    pantalla.mostrarInfo(valorLDR, modo, ledsOn);
+    if (ldr.estaOscuro()) {
+        led.encender();
+    } else {
+        led.apagar();
+    }
     
-    // Mostrar en Serial también
     Serial.print("LDR: ");
     Serial.print(valorLDR);
-    Serial.print(" | Modo: ");
-    Serial.print(modo);
-    Serial.print(" | LEDs: ");
-    Serial.print(ledsOn);
-    Serial.println("/8");
     
-    // Cambiar modo cada 3 segundos
-    modos.cambiarModo();
+    Serial.print(" (");
+    Serial.print(porcentaje);
+    Serial.print("%)");
     
-    delay(3000);
+    Serial.print(" | LED: ");
+    Serial.print(led.estaEncendido() ? "ON" : "OFF");
+    
+    if (valorLDR < 100) Serial.print(" [MUY OSCURO]");
+    else if (valorLDR < 300) Serial.print(" [OSCURO]");
+    else if (valorLDR < 500) Serial.print(" [POCA LUZ]");
+    else if (valorLDR < 700) Serial.print(" [LUZ NORMAL]");
+    else Serial.print(" [MUCHA LUZ]");
+    
+    Serial.println();
+    
+    delay(500);
 }
