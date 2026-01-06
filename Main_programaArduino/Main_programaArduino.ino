@@ -11,155 +11,126 @@
 #define UMBRAL_LDR 400     // Valor límite para sensor de luz (más oscuro = mayor valor)
 
 // ============================================================================
-// SECCIÓN 2: CLASE BASE PRINCIPAL - COMPONENTE
+// SECCIÓN 2: CLASE BASE PRINCIPAL - COMPONENTE (SIN CAMBIOS)
 // ============================================================================
-
-// CLASE: Componente (Base Abstracta)
-// ----------------------------------------------------------------------------
-// Propósito: Ser la clase padre de todos los elementos electrónicos del sistema
-// Características: Clase abstracta (no se pueden crear objetos de esta clase)
-// Uso de OOP: Define una interfaz común mediante métodos virtuales puros
 
 class Componente {
 protected:
-    // ATRIBUTOS PROTEGIDOS (accesibles por clases hijas)
-    int pin;           // Guarda el número del pin GPIO de la ESP32
-    String nombre;     // Nombre identificador (ej: "LED_SALA", "SENSOR_LDR")
+    int pin;
+    String nombre;
     
 public:
-    // --- CONSTRUCTORES ---
-    // Constructor principal: inicializa con pin y nombre específicos
     Componente(int p, String n) : pin(p), nombre(n) {}
-    
-    // Constructor por defecto: para cuando no se tienen valores iniciales
     Componente() : pin(0), nombre("") {}
-    
-    // Destructor virtual: necesario para liberar memoria correctamente en herencia
     virtual ~Componente() {}
     
-    // --- MÉTODOS VIRTUALES PUROS (OBLIGATORIOS PARA CLASES HIJAS) ---
-    // Estas funciones DEBEN ser implementadas por todas las clases hijas
+    virtual void iniciar() = 0;
+    virtual void escribir(int valor) = 0;
+    virtual int leer() = 0;
     
-    virtual void iniciar() = 0;      // Configura el hardware del componente
-    virtual void escribir(int valor) = 0;  // Envía datos/instrucciones al componente
-    virtual int leer() = 0;          // Obtiene datos/estado del componente
-    
-    // --- MÉTODOS CONCRETOS (COMPARTIDOS) ---
-    // Estas funciones son heredadas tal cual por las clases hijas
-    
-    String getNombre() { return nombre; }  // Devuelve el nombre del componente
-    int getPin() { return pin; }           // Devuelve el número del pin
+    String getNombre() { return nombre; }
+    int getPin() { return pin; }
 };
 
 // ============================================================================
-// SECCIÓN 3: CLASES DERIVADAS (HIJAS DE COMPONENTE)
+// SECCIÓN 3: CLASES DERIVADAS - IMPLEMENTACIONES COMPLETAS
 // ============================================================================
 
-// CLASE: LED - Control de luces (VERSIÓN COMPLETA)
-// ----------------------------------------------------------------------------
-// NOVEDAD: Ahora tiene implementación completa con control de brillo y estado
-// Mejoras respecto a versión anterior: Atributos privados, métodos utilitarios
-
+// CLASE: LED (COMPLETA) - SIN CAMBIOS SIGNIFICATIVOS
 class LED : public Componente {
 private:
-    // NUEVOS ATRIBUTOS PRIVADOS (encapsulamiento mejorado)
-    int brillo;      // Almacena la intensidad actual del LED (0-255 para PWM)
-    bool encendido;  // Estado booleano del LED (true = encendido, false = apagado)
+    int brillo;
+    bool encendido;
     
 public:
-    // Constructor mejorado: inicializa atributos adicionales
     LED(int p, String n = "LED") : Componente(p, n), brillo(0), encendido(false) {}
     
-    // MÉTODO: iniciar() - Implementación COMPLETA
-    // Configura el pin físico y muestra confirmación por Serial
     void iniciar() override {
-        pinMode(pin, OUTPUT);      // Establece pin como salida
-        digitalWrite(pin, LOW);    // Asegura que empiece apagado
-        Serial.print("LED inicializado: ");
-        Serial.println(nombre);    // Mensaje de confirmación
+        pinMode(pin, OUTPUT);
+        digitalWrite(pin, LOW);
     }
     
-    // MÉTODO: escribir() - Implementación COMPLETA con control PWM
-    // Recibe valor entre 0-255 y lo aplica al LED mediante analogWrite()
     void escribir(int valor) override {
-        brillo = constrain(valor, 0, 255);  // Limita valor al rango PWM (0-255)
-        analogWrite(pin, brillo);           // Escribe valor analógico (PWM)
-        encendido = (brillo > 0);           // Actualiza estado según brillo
+        brillo = constrain(valor, 0, 255);
+        analogWrite(pin, brillo);
+        encendido = (brillo > 0);
     }
     
-    // MÉTODO: leer() - Implementación COMPLETA
-    // Devuelve el brillo actual almacenado (no lee del pin físico)
-    int leer() override {
-        return brillo;  // Retorna intensidad actual (0-255)
-    }
+    int leer() override { return brillo; }
     
-    // ============================================================================
-    // NUEVOS MÉTODOS UTILITARIOS - INTERFAZ MEJORADA PARA CONTROL DE LEDS
-    // ============================================================================
-    
-    // MÉTODO: encender() - Enciende el LED al máximo brillo
-    void encender() { 
-        escribir(255);  // Brillo máximo (255 = 100%)
-        encendido = true;
-        Serial.print("LED encendido: ");
-        Serial.println(nombre);
-    }
-    
-    // MÉTODO: apagar() - Apaga completamente el LED
-    void apagar() { 
-        escribir(0);  // Brillo cero (0 = 0%)
-        encendido = false;
-        Serial.print("LED apagado: ");
-        Serial.println(nombre);
-    }
-    
-    // MÉTODO: alternar() - Cambia entre encendido y apagado
-    // Útil para botones de toggle
-    void alternar() {
-        if (encendido) {
-            apagar();
-        } else {
-            encender();
-        }
-    }
-    
-    // MÉTODO: estaEncendido() - Consulta el estado actual
-    // Devuelve true si el LED está encendido (brillo > 0)
+    void encender() { escribir(255); encendido = true; }
+    void apagar() { escribir(0); encendido = false; }
+    void alternar() { encendido ? apagar() : encender(); }
     bool estaEncendido() { return encendido; }
-    
-    // MÉTODO: setBrillo() - Alias para escribir() con nombre más descriptivo
     void setBrillo(int valor) { escribir(valor); }
 };
 
-// ----------------------------------------------------------------------------
-// CLASE: SensorLDR - Sensor de luz ambiental (SIN CAMBIOS)
-// ----------------------------------------------------------------------------
+// ============================================================================
+// NUEVO: CLASE SENSOR LDR COMPLETAMENTE IMPLEMENTADA
+// ============================================================================
 
 class SensorLDR : public Componente {
 public:
     SensorLDR(int p, String n = "LDR") : Componente(p, n) {}
     
-    void iniciar() override {}
-    void escribir(int valor) override {}
-    int leer() override { return 0; }
+    // MÉTODO: iniciar() - Configura el pin como entrada analógica
+    void iniciar() override {
+        pinMode(pin, INPUT);  // Los pines analógicos no necesitan configuración especial
+        Serial.print("Sensor LDR inicializado en GPIO");
+        Serial.println(pin);  // Confirmación de inicialización
+    }
+    
+    // MÉTODO: escribir() - Los sensores solo leen, no escriben
+    void escribir(int valor) override {
+        // No aplica para sensores (método vacío pero requerido por la interfaz)
+    }
+    
+    // MÉTODO: leer() - Lectura real del sensor (0-4095 en ESP32)
+    int leer() override {
+        return analogRead(pin);  // Valor entre 0 y 4095
+    }
+    
+    // MÉTODO NUEVO: esOscuro() - Interpretación del valor del sensor
+    // Retorna true si la lectura está por debajo del umbral (<= 400)
+    bool esOscuro() {
+        return leer() <= UMBRAL_LDR;  // Menor valor = más luz, Mayor valor = más oscuro
+    }
 };
 
-// ----------------------------------------------------------------------------
-// CLASE: Potenciometro - Control manual rotatorio (SIN CAMBIOS)
-// ----------------------------------------------------------------------------
+// ============================================================================
+// NUEVO: CLASE POTENCIÓMETRO COMPLETAMENTE IMPLEMENTADA
+// ============================================================================
 
 class Potenciometro : public Componente {
 public:
     Potenciometro(int p, String n = "Pot") : Componente(p, n) {}
     
-    void iniciar() override {}
-    void escribir(int valor) override {}
-    int leer() override { return 0; }
+    // MÉTODO: iniciar() - Configuración del pin analógico
+    void iniciar() override {
+        pinMode(pin, INPUT);  // Entrada analógica
+        Serial.print("Potenciómetro inicializado en GPIO");
+        Serial.println(pin);  // Confirmación
+    }
+    
+    void escribir(int valor) override {}  // No aplica
+    
+    // MÉTODO: leer() - Lectura del valor actual (0-4095)
+    int leer() override {
+        return analogRead(pin);
+    }
+    
+    // MÉTODO NUEVO: getModo() - Convierte valor analógico en modo (0-5)
+    // Mapea el rango 0-4095 a 0-6, luego limita a 0-5
+    int getModo() {
+        int valor = leer();  // Lee valor actual
+        int modo = map(valor, 0, 4095, 0, 6);  // Convierte rango
+        return constrain(modo, 0, 5);  // Asegura que sea 0-5
+    }
 };
 
-// ----------------------------------------------------------------------------
-// CLASE: Boton - Entrada manual por pulsación (SIN CAMBIOS)
-// ----------------------------------------------------------------------------
+// ============================================================================
+// CLASE: Boton (ESQUELETO) - SIN CAMBIOS
+// ============================================================================
 
 class Boton : public Componente {
 public:
@@ -171,9 +142,9 @@ public:
     int leer() override { return HIGH; }
 };
 
-// ----------------------------------------------------------------------------
-// CLASE: PantallaLCD - Interfaz visual para el usuario (SIN CAMBIOS)
-// ----------------------------------------------------------------------------
+// ============================================================================
+// CLASE: PantallaLCD (ESQUELETO) - SIN CAMBIOS
+// ============================================================================
 
 class PantallaLCD : public Componente {
 public:
@@ -185,25 +156,70 @@ public:
 };
 
 // ============================================================================
-// SECCIÓN 4: SISTEMA DE MODOS DE OPERACIÓN (SIN CAMBIOS)
+// NUEVO: SISTEMA DE MODOS MEJORADO CON LÓGICA COMPLETA
 // ============================================================================
 
 class SistemaModos {
-public:
-    SistemaModos() {}
+private:
+    // ARREGLO DE NOMBRES: Cada índice corresponde a un modo específico
+    const char* nombresModos[6] = {"NOCHE", "LECTURA", "RELAJ", "FIESTA", "AUTO", "MANUAL"};
+    int modoActual;  // Almacena el modo activo actualmente (0-5)
     
-    String getModoActual() { return "NOCHE"; }
-    void cambiarModo(int nuevoModo) {}
-    void cambiarModoAuto() {}
-    bool isAutoActivo() { return true; }
-    int getBrilloPorModo(int valorLDR) { return 0; }
-    bool esModoManual() { return false; }
-    bool esModoAuto() { return false; }
-    bool esModoFiesta() { return false; }
+public:
+    // CONSTRUCTOR: Inicia en modo NOCHE (0)
+    SistemaModos() : modoActual(0) {}
+    
+    // MÉTODO: getModoActual() - Devuelve nombre del modo como String
+    String getModoActual() {
+        return String(nombresModos[modoActual]);
+    }
+    
+    // MÉTODO: cambiarModo() - Cambia modo con validación de rango
+    void cambiarModo(int nuevoModo) {
+        if (nuevoModo >= 0 && nuevoModo <= 5) {
+            modoActual = nuevoModo;
+            Serial.print("Modo cambiado a: ");
+            Serial.println(getModoActual());  // Feedback por Serial
+        }
+    }
+    
+    // MÉTODO: cambiarModoAuto() - Atajo para modo AUTO (índice 4)
+    void cambiarModoAuto() {
+        modoActual = 4;  // Modo AUTO
+        Serial.println("Modo AUTO activado");
+    }
+    
+    bool isAutoActivo() { return true; }  // Por implementar
+    
+    // MÉTODO: getBrilloPorModo() - LÓGICA PRINCIPAL DEL SISTEMA
+    // Decide el brillo según modo actual y lectura del LDR
+    int getBrilloPorModo(int valorLDR) {
+        switch(modoActual) {
+            case 0: // NOCHE - 20% de brillo fijo
+                return 51;  // 20% de 255 ≈ 51
+            case 1: // LECTURA - 40% de brillo fijo
+                return 102; // 40% de 255 ≈ 102
+            case 2: // RELAJACIÓN - 30% de brillo fijo
+                return 76;  // 30% de 255 ≈ 76
+            case 3: // FIESTA - Se maneja aparte con lógica especial
+                return 0;   // Cero indica manejo especial
+            case 4: // AUTOMÁTICO - Depende del sensor LDR
+                return (valorLDR <= UMBRAL_LDR) ? 255 : 0;  // Oscuro=ON, Claro=OFF
+            case 5: // MANUAL - Control usuario (brillo especial -1)
+                return -1;  // -1 indica control manual
+            default:
+                return 100; // Valor por defecto
+        }
+    }
+    
+    // MÉTODOS DE CONSULTA: Identifican el modo actual
+    bool esModoManual() { return modoActual == 5; }
+    bool esModoAuto() { return modoActual == 4; }
+    bool esModoFiesta() { return modoActual == 3; }
 };
 
 // ============================================================================
-// SECCIÓN 5: DECLARACIÓN DE OBJETOS GLOBALES (SIN CAMBIOS)
+// SECCIÓN 5: DECLARACIÓN DE OBJETOS GLOBALES
 // ============================================================================
 
 LED* leds[8];
@@ -216,23 +232,18 @@ Componente* componentes[30];
 int numComponentes = 0;
 
 // ============================================================================
-// SECCIÓN 6: FUNCIONES PRINCIPALES DE ARDUINO/ESP32 (MEJORADAS)
+// SECCIÓN 6: FUNCIONES PRINCIPALES - SETUP MEJORADO
 // ============================================================================
 
-// FUNCIÓN: setup() - Configuración inicial MEJORADA
-// ----------------------------------------------------------------------------
-// NOVEDAD: Ahora inicializa TODOS los LEDs y los registra en el sistema
-// También incluye una demostración automática de funcionalidad
-
 void setup() {
-    Serial.begin(115200);  // Inicia comunicación serial para depuración
+    Serial.begin(115200);
     
-    // Mensaje inicial de identificación (actualizado)
+    // NUEVO: Información específica del commit
     Serial.println("=== INICIANDO CASA INTELIGENTE ===");
-    Serial.println("Commit 2: Clase LED implementada completamente");
+    Serial.println("Commit 3: Sensores LDR y potenciómetro implementados");
+    Serial.println("Umbral LDR: <= 400 = OSCURO (LEDs ON)");
     
-    // INICIALIZACIÓN DE LEDs - Creación de objetos dinámicos
-    // Cada LED representa una habitación/área de la casa
+    // 1. INICIALIZAR LEDs (sin cambios)
     leds[0] = new LED(21, "CUARTO1");
     leds[1] = new LED(19, "CUARTO2");
     leds[2] = new LED(5, "CUARTO3");
@@ -242,72 +253,85 @@ void setup() {
     leds[6] = new LED(13, "PATIO TRASERO");
     leds[7] = new LED(18, "PATIO INTERIOR");
     
-    // ============================================================================
-    // NUEVO: INICIALIZACIÓN AUTOMÁTICA DE TODOS LOS LEDs
-    // ============================================================================
-    
-    // Bucle que inicializa cada LED y lo registra en el arreglo polimórfico
+    // 2. INICIALIZAR COMPONENTES CON REGISTRO EN SISTEMA
     for (int i = 0; i < 8; i++) {
-        leds[i]->iniciar();                    // Llama al método iniciar() de cada LED
-        componentes[numComponentes++] = leds[i]; // Agrega al arreglo de componentes
+        leds[i]->iniciar();
+        componentes[numComponentes++] = leds[i];  // Registra en arreglo polimórfico
     }
     
-    // ============================================================================
-    // NUEVO: DEMOSTRACIÓN AUTOMÁTICA DE FUNCIONALIDAD
-    // ============================================================================
+    // NUEVO: Inicialización de sensores con registro
+    ldr.iniciar();
+    componentes[numComponentes++] = &ldr;  // Agrega sensor LDR al sistema
     
-    Serial.println("\n=== DEMOSTRACIÓN LEDs ===");
-    delay(1000);  // Pausa para que se pueda leer el mensaje
+    pot.iniciar();
+    componentes[numComponentes++] = &pot;  // Agrega potenciómetro al sistema
     
-    // Demostración 1: Encender y apagar LED 0
-    leds[0]->encender();  // Enciende completamente
-    delay(500);           // Espera medio segundo
-    leds[0]->apagar();    // Apaga completamente
+    componentes[numComponentes++] = &lcd;  // Registra pantalla LCD
     
-    // Demostración 2: Control de brillo en LED 1
-    leds[1]->setBrillo(128);  // Establece brillo al 50% (128/255 ≈ 50%)
-    delay(500);                // Mantiene encendido
-    leds[1]->apagar();         // Apaga
+    // NUEVO: Informe de componentes registrados
+    Serial.println("\n=== SENSORES INICIALIZADOS ===");
+    Serial.print("Total componentes: ");
+    Serial.println(numComponentes);
     
-    Serial.println("Demostración completada");
+    // 3. ESTADO INICIAL: Apagar todos los LEDs
+    for (int i = 0; i < 8; i++) {
+        leds[i]->apagar();
+    }
+    
+    Serial.println("Todos los LEDs apagados");
     Serial.println("===================================\n");
 }
 
-// FUNCIÓN: loop() - Bucle principal MEJORADO
-// ----------------------------------------------------------------------------
-// NOVEDAD: Implementa un demostrador cíclico que enciende LEDs uno por uno
-// Muestra el uso práctico de los métodos implementados
+// ============================================================================
+// SECCIÓN 7: LOOP PRINCIPAL CON LÓGICA COMPLETA DEL SISTEMA
+// ============================================================================
 
 void loop() {
-    // ============================================================================
-    // NUEVO: DEMOSTRADOR CÍCLICO DE LEDs
-    // ============================================================================
+    // 1. LEER SENSORES (NUEVO: Lectura real de hardware)
+    int valorLDR = ldr.leer();          // Valor analógico 0-4095
+    bool estaOscuro = ldr.esOscuro();   // Interpretación booleana (<=400)
+    int modoPot = pot.getModo();        // Modo seleccionado por potenciómetro (0-5)
     
-    // Variables estáticas mantienen su valor entre llamadas a loop()
-    static int ledActual = 0;           // LED que se está mostrando actualmente
-    static unsigned long ultimoCambio = 0;  // Marca de tiempo del último cambio
+    // 2. ACTUALIZAR MODO DEL SISTEMA (NUEVO: Cambio dinámico según potenciómetro)
+    modos.cambiarModo(modoPot);  // Actualiza modo según selección del usuario
     
-    // Cambia de LED cada 1000 milisegundos (1 segundo)
-    if (millis() - ultimoCambio > 1000) {
+    // 3. APLICAR MODO A LEDs (excepto modo MANUAL que requiere intervención)
+    if (!modos.esModoManual()) {
+        int brillo = modos.getBrilloPorModo(valorLDR);
         
-        // Paso 1: Apagar TODOS los LEDs antes de encender uno nuevo
-        for (int i = 0; i < 8; i++) {
-            leds[i]->apagar();  // Llama al método apagar() de cada LED
+        if (brillo >= 0) {  // Si no es modo especial (-1 = manual)
+            if (modos.esModoAuto() || modos.isAutoActivo()) {
+                // Aplica brillo a TODOS los LEDs
+                for (int i = 0; i < 8; i++) {
+                    leds[i]->setBrillo(brillo);
+                }
+            }
         }
-        
-        // Paso 2: Encender el LED actual
-        leds[ledActual]->encender();  // Enciende el LED correspondiente
-        
-        // Paso 3: Mostrar información por Serial
-        Serial.print("LED activo: ");
-        Serial.println(leds[ledActual]->getNombre());  // Usa getNombre() heredado
-        
-        // Paso 4: Avanzar al siguiente LED (cíclico 0→1→2...→7→0)
-        ledActual = (ledActual + 1) % 8;  // Operador módulo para ciclo continuo
-        
-        // Paso 5: Actualizar marca de tiempo
-        ultimoCambio = millis();  // Registra el momento del cambio
     }
     
-    delay(100);  // Pequeña pausa para evitar sobrecargar el procesador
+    // 4. CONTAR LEDs ENCENDIDOS (para monitoreo)
+    int ledsOn = 0;
+    for (int i = 0; i < 8; i++) {
+        if (leds[i]->estaEncendido()) ledsOn++;
+    }
+    
+    // 5. LOG EN SERIAL (NUEVO: Informe periódico cada 2 segundos)
+    static unsigned long ultimoLog = 0;  // Variable estática para control de tiempo
+    
+    if (millis() - ultimoLog > 2000) {  // Cada 2000ms (2 segundos)
+        Serial.print("LDR: ");
+        Serial.print(valorLDR);
+        Serial.print(" | ");
+        Serial.print(estaOscuro ? "OSCURO" : "CLARO");
+        Serial.print(" (<=400)");
+        Serial.print(" | Modo: ");
+        Serial.print(modos.getModoActual());
+        Serial.print(" | LEDs: ");
+        Serial.print(ledsOn);
+        Serial.println("/8");
+        
+        ultimoLog = millis();  // Reinicia contador
+    }
+    
+    delay(100);  // Pequeña pausa para estabilidad
 }
