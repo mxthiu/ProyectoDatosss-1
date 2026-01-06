@@ -164,15 +164,20 @@ public:
     int leer() override { return 0; }
 };
 
-// ================= SISTEMA DE MODOS (MEJORADO) =================
+// ================= SISTEMA DE MODOS (COMPLETO) =================
 class SistemaModos {
 private:
     const char* nombresModos[6] = {"NOCHE", "LECTURA", "RELAJ", "FIESTA", "AUTO", "MANUAL"};
     int modoActual;
     bool autoActivo;
+    unsigned long ultimoCambioFiesta;
+    int ledFiestaActual;
+    bool estadoAutoAnterior;
+    unsigned long ultimoCambioLED;
     
 public:
-    SistemaModos() : modoActual(0), autoActivo(true) {}
+    SistemaModos() : modoActual(0), autoActivo(true), ultimoCambioFiesta(0), 
+                     ledFiestaActual(0), estadoAutoAnterior(false), ultimoCambioLED(0) {}
     
     String getModoActual() {
         return String(nombresModos[modoActual]);
@@ -202,21 +207,51 @@ public:
     
     int getBrilloPorModo(int valorLDR) {
         switch(modoActual) {
-            case 0: // NOCHE
+            case 0: // NOCHE - 20%
                 return 51;
-            case 1: // LECTURA
+            case 1: // LECTURA - 40%
                 return 102;
-            case 2: // RELAJACIÓN
+            case 2: // RELAJACIÓN - 30%
                 return 76;
             case 3: // FIESTA
                 return 0;
             case 4: // AUTOMÁTICO
-                return (valorLDR <= UMBRAL_LDR) ? 255 : 0;
+            {
+                bool oscuroAhora = (valorLDR <= UMBRAL_LDR);
+                
+                if (oscuroAhora != estadoAutoAnterior && (millis() - ultimoCambioLED > 1000)) {
+                    estadoAutoAnterior = oscuroAhora;
+                    ultimoCambioLED = millis();
+                    Serial.print("AUTO (");
+                    Serial.print(valorLDR);
+                    Serial.print(" <= 400): ");
+                    Serial.println(oscuroAhora ? "OSCURO -> LEDs ON" : "CLARO -> LEDs OFF");
+                }
+                
+                return oscuroAhora ? 255 : 0;
+            }
             case 5: // MANUAL
                 return -1;
             default:
                 return 100;
         }
+    }
+    
+    void manejarModoFiesta(LED** leds, int totalLEDs) {
+        if (millis() - ultimoCambioFiesta > 200) {
+            for (int i = 0; i < totalLEDs; i++) {
+                leds[i]->apagar();
+            }
+            
+            leds[ledFiestaActual]->encender();
+            
+            ledFiestaActual = (ledFiestaActual + 1) % totalLEDs;
+            ultimoCambioFiesta = millis();
+        }
+    }
+    
+    bool esModoFiesta() {
+        return modoActual == 3;
     }
     
     bool esModoManual() {
@@ -225,10 +260,6 @@ public:
     
     bool esModoAuto() {
         return modoActual == 4;
-    }
-    
-    bool esModoFiesta() {
-        return modoActual == 3;
     }
 };
 
@@ -246,7 +277,7 @@ int numComponentes = 0;
 void setup() {
     Serial.begin(115200);
     Serial.println("=== INICIANDO CASA INTELIGENTE ===");
-    Serial.println("Commit 4: Sistema de botones implementado");
+    Serial.println("Commit 5: Sistema de modos completo implementado");
     Serial.println("Umbral LDR: <= 400 = OSCURO (LEDs ON)");
     
     // 1. INICIALIZAR LEDs
@@ -283,7 +314,7 @@ void setup() {
         componentes[numComponentes++] = botones[i];
     }
     
-    // 4. INICIALIZAR TODOS LOS COMPONENTES (POLIMORFISMO)
+    // 4. INICIALIZAR COMPONENTES
     Serial.println("\n=== INICIALIZANDO COMPONENTES ===");
     for (int i = 0; i < numComponentes; i++) {
         componentes[i]->iniciar();
@@ -304,13 +335,20 @@ void setup() {
     Serial.println("GPIO33: Patio Trasero");
     Serial.println("GPIO32: Patio Interior");
     
+    Serial.println("\n=== MODOS IMPLEMENTADOS ===");
+    Serial.println("NOCHE: 20% (51)");
+    Serial.println("LECTURA: 40% (102)");
+    Serial.println("RELAJ: 30% (76)");
+    Serial.println("FIESTA: Animación secuencial");
+    Serial.println("AUTO: Control por LDR (umbral 400)");
+    Serial.println("MANUAL: Control por botones");
+    
     // 5. APAGAR TODOS LOS LEDs INICIALMENTE
     for (int i = 0; i < 8; i++) {
         leds[i]->apagar();
     }
     
     Serial.println("\n=== SISTEMA LISTO ===");
-    Serial.println("Modo MANUAL: Use botones 1-8 para controlar LEDs");
     Serial.println("===================================\n");
 }
 
@@ -346,12 +384,18 @@ void loop() {
     
     // 5. APLICAR MODO ACTUAL A LEDs
     if (!modos.esModoManual()) {
-        int brillo = modos.getBrilloPorModo(valorLDR);
-        
-        if (brillo >= 0) {
-            if (modos.esModoAuto() || modos.isAutoActivo()) {
-                for (int i = 0; i < 8; i++) {
-                    leds[i]->setBrillo(brillo);
+        if (modos.esModoFiesta()) {
+            // Modo FIESTA (animación)
+            modos.manejarModoFiesta(leds, 8);
+        } else {
+            // Otros modos (NOCHE, LECTURA, RELAJ, AUTO)
+            int brillo = modos.getBrilloPorModo(valorLDR);
+            
+            if (brillo >= 0) {
+                if (modos.esModoAuto() || modos.isAutoActivo()) {
+                    for (int i = 0; i < 8; i++) {
+                        leds[i]->setBrillo(brillo);
+                    }
                 }
             }
         }
@@ -363,7 +407,10 @@ void loop() {
         if (leds[i]->estaEncendido()) ledsOn++;
     }
     
-    // 7. LOG EN SERIAL
+    // 7. MOSTRAR EN LCD (próximo commit)
+    // lcd.mostrarInfo(valorLDR, modos.getModoActual(), ledsOn);
+    
+    // 8. LOG EN SERIAL
     static unsigned long ultimoLog = 0;
     if (millis() - ultimoLog > 1000) {
         Serial.print("LDR: ");
