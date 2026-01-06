@@ -1,11 +1,12 @@
 #include <Wire.h>
 
+// ================= CONFIGURACIÓN =================
 #define LCD_ADDR 0x27
 #define SDA_PIN 17
 #define SCL_PIN 16
 #define UMBRAL_LDR 400
 
-//  CLASE BASE 
+// ================= CLASE BASE =================
 class Componente {
 protected:
     int pin;
@@ -16,7 +17,6 @@ public:
     Componente() : pin(0), nombre("") {}
     virtual ~Componente() {}
     
-    // MÉTODOS VIRTUALES PUROS (Polimorfismo obligatorio)
     virtual void iniciar() = 0;
     virtual void escribir(int valor) = 0;
     virtual int leer() = 0;
@@ -25,7 +25,7 @@ public:
     int getPin() { return pin; }
 };
 
-//  CLASE LED 
+// ================= CLASE LED =================
 class LED : public Componente {
 private:
     int brillo;
@@ -71,7 +71,7 @@ public:
     void setBrillo(int valor) { escribir(valor); }
 };
 
-//  CLASE SENSOR LDR
+// ================= CLASE SENSOR LDR =================
 class SensorLDR : public Componente {
 public:
     SensorLDR(int p, String n = "LDR") : Componente(p, n) {}
@@ -91,7 +91,7 @@ public:
     }
 };
 
-//  CLASE POTENCIÓMETRO
+// ================= CLASE POTENCIÓMETRO =================
 class Potenciometro : public Componente {
 public:
     Potenciometro(int p, String n = "Pot") : Componente(p, n) {}
@@ -113,7 +113,7 @@ public:
     }
 };
 
-//  CLASE BOTÓN 
+// ================= CLASE BOTÓN =================
 class Boton : public Componente {
 private:
     bool estadoAnterior;
@@ -153,7 +153,7 @@ public:
     }
 };
 
-//  CLASE LCD 
+// ================= CLASE LCD =================
 class PantallaLCD : public Componente {
 private:
     bool lcdInicializado;
@@ -191,15 +191,12 @@ public:
     void mostrarInfo(int valorLDR, String modo, int ledsEncendidos) {
         if (!lcdInicializado) return;
         
-        // Limpiar display
         enviarComando(0x01);
         delay(2);
         
-        // Línea 1
         String linea1 = "LDR:" + String(valorLDR) + "  LED:" + String(ledsEncendidos) + "/8";
         escribirLinea(linea1, 0, 0);
         
-        // Línea 2
         String linea2 = "Modo " + modo;
         escribirLinea(linea2, 0, 1);
     }
@@ -231,20 +228,22 @@ private:
     }
 };
 
-//  SISTEMA DE MODOS
+// ================= SISTEMA DE MODOS =================
 class SistemaModos {
 private:
     const char* nombresModos[6] = {"NOCHE", "LECTURA", "RELAJ", "FIESTA", "AUTO", "MANUAL"};
     int modoActual;
     bool autoActivo;
+    bool forzarEncendido;  // NUEVO: bandera para forzar encendido
     unsigned long ultimoCambioFiesta;
     int ledFiestaActual;
     bool estadoAutoAnterior;
     unsigned long ultimoCambioLED;
     
 public:
-    SistemaModos() : modoActual(0), autoActivo(true), ultimoCambioFiesta(0), 
-                     ledFiestaActual(0), estadoAutoAnterior(false), ultimoCambioLED(0) {}
+    SistemaModos() : modoActual(0), autoActivo(true), forzarEncendido(false), // INICIALIZADO
+                     ultimoCambioFiesta(0), ledFiestaActual(0), 
+                     estadoAutoAnterior(false), ultimoCambioLED(0) {}
     
     String getModoActual() {
         return String(nombresModos[modoActual]);
@@ -257,7 +256,7 @@ public:
     }
     
     void cambiarModoAuto() {
-        modoActual = 4; 
+        modoActual = 4; // Modo AUTO
         autoActivo = true;
         Serial.println("Atajo P4: Modo AUTO activado");
     }
@@ -268,8 +267,19 @@ public:
         Serial.println(autoActivo ? "ACTIVADO" : "DESACTIVADO");
     }
     
+    // NUEVO: Método para alternar forzado de encendido
+    void toggleForzarEncendido() {
+        forzarEncendido = !forzarEncendido;
+        Serial.print("Forzar encendido: ");
+        Serial.println(forzarEncendido ? "ACTIVADO" : "DESACTIVADO");
+    }
+    
     bool isAutoActivo() {
         return autoActivo;
+    }
+    
+    bool isForzarEncendido() {  // NUEVO: Getter para estado
+        return forzarEncendido;
     }
     
     int getBrilloPorModo(int valorLDR) {
@@ -282,20 +292,28 @@ public:
                 return 76;
             case 3: // FIESTA
                 return 0;
-            case 4: // AUTOMÁTICO
+            case 4: // AUTOMÁTICO - CON LÓGICA OR
             {
+                // NUEVO LÓGICA: OR entre LDR y botón forzado
                 bool oscuroAhora = (valorLDR <= UMBRAL_LDR);
+                bool debeEncender = oscuroAhora || forzarEncendido;  // ← LÓGICA OR
                 
-                if (oscuroAhora != estadoAutoAnterior && (millis() - ultimoCambioLED > 1000)) {
-                    estadoAutoAnterior = oscuroAhora;
+                if (debeEncender != estadoAutoAnterior && (millis() - ultimoCambioLED > 1000)) {
+                    estadoAutoAnterior = debeEncender;
                     ultimoCambioLED = millis();
-                    Serial.print("AUTO (");
+                    
+                    // Log mejorado para mostrar ambos estados
+                    Serial.print("AUTO [LDR:");
                     Serial.print(valorLDR);
-                    Serial.print(" <= 400): ");
-                    Serial.println(oscuroAhora ? "OSCURO -> LEDs ON" : "CLARO -> LEDs OFF");
+                    Serial.print(" (");
+                    Serial.print(oscuroAhora ? "OSCURO" : "CLARO");
+                    Serial.print(") | Forzar:");
+                    Serial.print(forzarEncendido ? "SI" : "NO");
+                    Serial.print("] -> LEDs ");
+                    Serial.println(debeEncender ? "ON" : "OFF");
                 }
                 
-                return oscuroAhora ? 255 : 0;
+                return debeEncender ? 255 : 0;  // Encender si LDR dice oscuro O botón forzado
             }
             case 5: // MANUAL
                 return -1;
@@ -330,20 +348,24 @@ public:
     }
 };
 
+// ================= INSTANCIAS =================
 LED* leds[8];
 SensorLDR ldr(34, "Sensor Luz");
 Potenciometro pot(35, "Pot Modos");
 PantallaLCD lcd("Pantalla LCD");
+
 Boton* botones[9];
 SistemaModos modos;
+
 Componente* componentes[30];
 int numComponentes = 0;
 
+// ================= SETUP =================
 void setup() {
     Serial.begin(115200);
     Serial.println("=== INICIANDO CASA INTELIGENTE ===");
-    Serial.println("Commit 7: Ajustes finales completos");
     Serial.println("Umbral LDR: <= 400 = OSCURO (LEDs ON)");
+    Serial.println("Modo AUTO: Lógica OR (LDR oscuro O Botón P4 forzado)");
     
     // 1. INICIALIZAR LEDs
     leds[0] = new LED(21, "CUARTO1");
@@ -361,7 +383,7 @@ void setup() {
     }
     
     // 3. INICIALIZAR BOTONES
-    botones[0] = new Boton(4, "P4 AtajoAuto");
+    botones[0] = new Boton(4, "P4 ForzarAuto");
     botones[1] = new Boton(26, "Boton C1");
     botones[2] = new Boton(27, "Boton C2");
     botones[3] = new Boton(14, "Boton C3");
@@ -371,6 +393,7 @@ void setup() {
     botones[7] = new Boton(33, "Boton P.Tras");
     botones[8] = new Boton(32, "Boton P.Int");
     
+    // 4. AGREGAR COMPONENTES
     for (int i = 0; i < 8; i++) {
         componentes[numComponentes++] = leds[i];
     }
@@ -383,6 +406,7 @@ void setup() {
         componentes[numComponentes++] = botones[i];
     }
     
+    // 5. INICIALIZAR COMPONENTES
     Serial.println("\n=== INICIALIZANDO COMPONENTES ===");
     for (int i = 0; i < numComponentes; i++) {
         componentes[i]->iniciar();
@@ -393,7 +417,7 @@ void setup() {
     }
     
     Serial.println("\n=== BOTONES CONFIGURADOS ===");
-    Serial.println("P4 (GPIO4): Atajo a Modo AUTO");
+    Serial.println("P4 (GPIO4): Forzar encendido en modo AUTO");
     Serial.println("GPIO26: Cuarto 1");
     Serial.println("GPIO27: Cuarto 2");
     Serial.println("GPIO14: Cuarto 3");
@@ -407,13 +431,14 @@ void setup() {
     Serial.println("NOCHE: 20% (51)");
     Serial.println("LECTURA: 40% (102)");
     Serial.println("RELAJ: 30% (76)");
-    Serial.println("AUTO: Umbral 400");
+    Serial.println("AUTO: Umbral 400 + Forzado por P4 (OR)");
     Serial.println("MANUAL: Todos apagados al inicio");
     Serial.println("===================================\n");
 }
 
+// ================= LOOP PRINCIPAL =================
 void loop() {
-    // 1. LEER LDR CORRECTAMENTE
+    // 1. LEER LDR
     int valorLDR = ldr.leer();
     bool estaOscuro = ldr.esOscuro();
     
@@ -421,12 +446,19 @@ void loop() {
     int modoPot = pot.getModo();
     modos.cambiarModo(modoPot);
     
-    // 3. BOTÓN P4 COMO ATAJO AL MODO AUTO
+    // 3. BOTÓN P4 PARA FORZAR ENCENDIDO EN MODO AUTO (LÓGICA OR)
     if (botones[0]->presionado()) {
-        modos.cambiarModoAuto();
+        if (modos.esModoAuto()) {
+            // Solo funciona en modo AUTO
+            modos.toggleForzarEncendido();
+        } else {
+            // Si no está en modo AUTO, cambia a modo AUTO y activa forzado
+            modos.cambiarModoAuto();
+            modos.toggleForzarEncendido();
+        }
     }
     
-    // 4. CONTROL MANUAL DE LEDs
+    // 4. CONTROL MANUAL DE LEDs (solo en modo MANUAL)
     if (modos.esModoManual()) {
         for (int i = 1; i <= 8; i++) {
             if (botones[i]->presionado()) {
@@ -467,9 +499,10 @@ void loop() {
         if (leds[i]->estaEncendido()) ledsOn++;
     }
     
-    // 7. MOSTRAR EN LCD 
+    // 7. MOSTRAR EN LCD
     lcd.mostrarInfo(valorLDR, modos.getModoActual(), ledsOn);
     
+    // 8. LOG EN SERIAL (mejorado para mostrar estado de forzado)
     static unsigned long ultimoLog = 0;
     if (millis() - ultimoLog > 1000) {
         Serial.print("LDR: ");
@@ -481,6 +514,13 @@ void loop() {
         Serial.print(modos.getModoActual());
         Serial.print(" | Auto: ");
         Serial.print(modos.isAutoActivo() ? "ON" : "OFF");
+        
+        // NUEVO: Mostrar estado de forzado
+        if (modos.esModoAuto()) {
+            Serial.print(" | Forzar: ");
+            Serial.print(modos.isForzarEncendido() ? "ON" : "OFF");
+        }
+        
         Serial.print(" | LEDs: ");
         Serial.print(ledsOn);
         Serial.println("/8");
