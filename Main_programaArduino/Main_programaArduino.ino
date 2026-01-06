@@ -257,7 +257,7 @@ private:
     // ============================================================================
     // NUEVA FUNCIONALIDAD: BANDERA PARA FORZAR ENCENDIDO
     // ============================================================================
-    bool forzarEncendido;  // ⭐ NUEVO: cuando es true, LEDs se encienden sin importar LDR
+    bool forzarEncendido;  //  NUEVO: cuando es true, LEDs se encienden sin importar LDR
     
     unsigned long ultimoCambioFiesta;
     int ledFiestaActual;
@@ -267,7 +267,7 @@ private:
 public:
     // Constructor actualizado con nueva variable
     SistemaModos() : modoActual(0), autoActivo(true), 
-                     forzarEncendido(false),  // ⭐ NUEVO: Inicializado en false
+                     forzarEncendido(false),  //  NUEVO: Inicializado en false
                      ultimoCambioFiesta(0), ledFiestaActual(0), 
                      estadoAutoAnterior(false), ultimoCambioLED(0) {}
     
@@ -297,7 +297,7 @@ public:
     // NUEVO MÉTODO: ALTERNAR ESTADO DE FORZADO DE ENCENDIDO
     // ============================================================================
     void toggleForzarEncendido() {
-        forzarEncendido = !forzarEncendido;  // ⭐ Alterna entre true/false
+        forzarEncendido = !forzarEncendido;  // Alterna entre true/false
         Serial.print("Forzar encendido: ");
         Serial.println(forzarEncendido ? "ACTIVADO" : "DESACTIVADO");
     }
@@ -310,7 +310,7 @@ public:
     // NUEVO MÉTODO: CONSULTAR ESTADO DE FORZADO
     // ============================================================================
     bool isForzarEncendido() {
-        return forzarEncendido;  // ⭐ Getter para consultar estado
+        return forzarEncendido;  //  Getter para consultar estado
     }
     
     // ============================================================================
@@ -326,9 +326,9 @@ public:
                 return 76;
             case 3: // FIESTA
                 return 0;
-            case 4: // AUTOMÁTICO - CON LÓGICA OR (⭐ NUEVA IMPLEMENTACIÓN)
+            case 4: // AUTOMÁTICO - CON LÓGICA OR (NUEVA IMPLEMENTACIÓN)
             {
-                // ⭐ LÓGICA OR: (LDR oscuro) O (botón forzado)
+                // LÓGICA OR: (LDR oscuro) O (botón forzado)
                 bool oscuroAhora = (valorLDR <= UMBRAL_LDR);
                 bool debeEncender = oscuroAhora || forzarEncendido;  // ← OPERADOR OR
                 
@@ -337,7 +337,7 @@ public:
                     estadoAutoAnterior = debeEncender;
                     ultimoCambioLED = millis();
                     
-                    // ⭐ LOG MEJORADO: Muestra ambos factores de decisión
+                    // LOG MEJORADO: Muestra ambos factores de decisión
                     Serial.print("AUTO [LDR:");
                     Serial.print(valorLDR);
                     Serial.print(" (");
@@ -348,7 +348,7 @@ public:
                     Serial.println(debeEncender ? "ON" : "OFF");
                 }
                 
-                // ⭐ RETORNA 255 si CUALQUIERA de las condiciones es verdadera
+                // RETORNA 255 si CUALQUIERA de las condiciones es verdadera
                 return debeEncender ? 255 : 0;
             }
             case 5: // MANUAL
@@ -393,7 +393,7 @@ SensorLDR ldr(34, "Sensor Luz");
 Potenciometro pot(35, "Pot Modos");
 PantallaLCD lcd("Pantalla LCD");
 
-// ⭐ NUEVO NOMBRE: Botón 0 ahora es "P4 ForzarAuto" en vez de "P4 AtajoAuto"
+// NUEVO NOMBRE: Botón 0 ahora es "P4 ForzarAuto" en vez de "P4 AtajoAuto"
 Boton* botones[9];
 SistemaModos modos;
 
@@ -407,7 +407,7 @@ int numComponentes = 0;
 void setup() {
     Serial.begin(115200);
     
-    // ⭐ ENCABEZADO MEJORADO: Explica nueva funcionalidad
+    // ENCABEZADO MEJORADO: Explica nueva funcionalidad
     Serial.println("=== INICIANDO CASA INTELIGENTE ===");
     Serial.println("Umbral LDR: <= 400 = OSCURO (LEDs ON)");
     Serial.println("Modo AUTO: Lógica OR (LDR oscuro O Botón P4 forzado)");
@@ -428,7 +428,7 @@ void setup() {
     }
     
     // 3. INICIALIZAR BOTONES
-    // ⭐ CAMBIO: Botón P4 ahora tiene nueva funcionalidad
+    // CAMBIO: Botón P4 ahora tiene nueva funcionalidad
     botones[0] = new Boton(4, "P4 ForzarAuto");  // ← NUEVO NOMBRE REFLEJA FUNCIÓN
     botones[1] = new Boton(26, "Boton C1");
     botones[2] = new Boton(27, "Boton C2");
@@ -462,7 +462,7 @@ void setup() {
         Serial.println(componentes[i]->getPin());
     }
     
-    // ⭐ INFORMACIÓN ACTUALIZADA DE BOTONES
+    // INFORMACIÓN ACTUALIZADA DE BOTONES
     Serial.println("\n=== BOTONES CONFIGURADOS ===");
     Serial.println("P4 (GPIO4): Forzar encendido en modo AUTO");
     Serial.println("GPIO26: Cuarto 1");
@@ -474,7 +474,7 @@ void setup() {
     Serial.println("GPIO33: Patio Trasero");
     Serial.println("GPIO32: Patio Interior");
     
-    // ⭐ DESCRIPCIÓN MEJORADA DE MODO AUTO
+    // DESCRIPCIÓN MEJORADA DE MODO AUTO
     Serial.println("\n=== MODOS CON BRILLOS ===");
     Serial.println("NOCHE: 20% (51)");
     Serial.println("LECTURA: 40% (102)");
@@ -502,10 +502,10 @@ void loop() {
     // ============================================================================
     if (botones[0]->presionado()) {
         if (modos.esModoAuto()) {
-            // ⭐ CASO 1: Ya está en modo AUTO → solo alterna forzado
+            // CASO 1: Ya está en modo AUTO → solo alterna forzado
             modos.toggleForzarEncendido();
         } else {
-            // ⭐ CASO 2: No está en modo AUTO → cambia a AUTO Y activa forzado
+            // CASO 2: No está en modo AUTO → cambia a AUTO Y activa forzado
             modos.cambiarModoAuto();
             modos.toggleForzarEncendido();
         }
@@ -527,7 +527,7 @@ void loop() {
     }
     
     // 5. APLICAR MODO ACTUAL A LEDs
-    // ⭐ NOTA: La lógica OR ya está implementada en getBrilloPorModo()
+    // NOTA: La lógica OR ya está implementada en getBrilloPorModo()
     if (!modos.esModoManual()) {
         if (modos.esModoFiesta()) {
             modos.manejarModoFiesta(leds, 8);
@@ -568,7 +568,7 @@ void loop() {
         Serial.print(" | Auto: ");
         Serial.print(modos.isAutoActivo() ? "ON" : "OFF");
         
-        // ⭐ NUEVO: Muestra estado de forzado cuando está en modo AUTO
+        // NUEVO: Muestra estado de forzado cuando está en modo AUTO
         if (modos.esModoAuto()) {
             Serial.print(" | Forzar: ");
             Serial.print(modos.isForzarEncendido() ? "ON" : "OFF");
