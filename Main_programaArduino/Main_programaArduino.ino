@@ -1,12 +1,11 @@
 #include <Wire.h>
 
-// ================= CONFIGURACIÓN =================
 #define LCD_ADDR 0x27
 #define SDA_PIN 17
 #define SCL_PIN 16
 #define UMBRAL_LDR 400
 
-// ================= CLASE BASE =================
+//  CLASE BASE 
 class Componente {
 protected:
     int pin;
@@ -26,7 +25,7 @@ public:
     int getPin() { return pin; }
 };
 
-// ================= CLASE LED (COMPLETA) =================
+//  CLASE LED 
 class LED : public Componente {
 private:
     int brillo;
@@ -72,7 +71,7 @@ public:
     void setBrillo(int valor) { escribir(valor); }
 };
 
-// ================= CLASE SENSOR LDR (COMPLETA) =================
+//  CLASE SENSOR LDR
 class SensorLDR : public Componente {
 public:
     SensorLDR(int p, String n = "LDR") : Componente(p, n) {}
@@ -92,7 +91,7 @@ public:
     }
 };
 
-// ================= CLASE POTENCIÓMETRO (COMPLETA) =================
+//  CLASE POTENCIÓMETRO
 class Potenciometro : public Componente {
 public:
     Potenciometro(int p, String n = "Pot") : Componente(p, n) {}
@@ -114,7 +113,7 @@ public:
     }
 };
 
-// ================= CLASE BOTÓN (COMPLETA) =================
+//  CLASE BOTÓN 
 class Boton : public Componente {
 private:
     bool estadoAnterior;
@@ -154,7 +153,7 @@ public:
     }
 };
 
-// ================= CLASE LCD (COMPLETA) =================
+//  CLASE LCD 
 class PantallaLCD : public Componente {
 private:
     bool lcdInicializado;
@@ -166,7 +165,6 @@ public:
         Wire.begin(SDA_PIN, SCL_PIN);
         delay(100);
         
-        // Inicialización estándar de LCD 16x2
         enviarComando(0x03);
         delay(5);
         enviarComando(0x03);
@@ -184,7 +182,6 @@ public:
         delay(2);
         
         lcdInicializado = true;
-        Serial.println("LCD inicializado correctamente");
     }
     
     void escribir(int valor) override {}
@@ -198,11 +195,11 @@ public:
         enviarComando(0x01);
         delay(2);
         
-        // Línea 1: "LDR:345 LED:3/8"
+        // Línea 1
         String linea1 = "LDR:" + String(valorLDR) + "  LED:" + String(ledsEncendidos) + "/8";
         escribirLinea(linea1, 0, 0);
         
-        // Línea 2: Modo actual
+        // Línea 2
         String linea2 = "Modo " + modo;
         escribirLinea(linea2, 0, 1);
     }
@@ -234,7 +231,7 @@ private:
     }
 };
 
-// ================= SISTEMA DE MODOS (COMPLETO) =================
+//  SISTEMA DE MODOS
 class SistemaModos {
 private:
     const char* nombresModos[6] = {"NOCHE", "LECTURA", "RELAJ", "FIESTA", "AUTO", "MANUAL"};
@@ -260,7 +257,7 @@ public:
     }
     
     void cambiarModoAuto() {
-        modoActual = 4; // Modo AUTO
+        modoActual = 4; 
         autoActivo = true;
         Serial.println("Atajo P4: Modo AUTO activado");
     }
@@ -333,7 +330,6 @@ public:
     }
 };
 
-// ================= INSTANCIAS =================
 LED* leds[8];
 SensorLDR ldr(34, "Sensor Luz");
 Potenciometro pot(35, "Pot Modos");
@@ -343,11 +339,10 @@ SistemaModos modos;
 Componente* componentes[30];
 int numComponentes = 0;
 
-// ================= SETUP =================
 void setup() {
     Serial.begin(115200);
     Serial.println("=== INICIANDO CASA INTELIGENTE ===");
-    Serial.println("Commit 6: Pantalla LCD implementada");
+    Serial.println("Commit 7: Ajustes finales completos");
     Serial.println("Umbral LDR: <= 400 = OSCURO (LEDs ON)");
     
     // 1. INICIALIZAR LEDs
@@ -360,7 +355,12 @@ void setup() {
     leds[6] = new LED(13, "PATIO TRASERO");
     leds[7] = new LED(18, "PATIO INTERIOR");
     
-    // 2. INICIALIZAR BOTONES
+    // 2. APAGAR TODOS LOS LEDs INICIALMENTE
+    for (int i = 0; i < 8; i++) {
+        leds[i]->apagar();
+    }
+    
+    // 3. INICIALIZAR BOTONES
     botones[0] = new Boton(4, "P4 AtajoAuto");
     botones[1] = new Boton(26, "Boton C1");
     botones[2] = new Boton(27, "Boton C2");
@@ -371,7 +371,6 @@ void setup() {
     botones[7] = new Boton(33, "Boton P.Tras");
     botones[8] = new Boton(32, "Boton P.Int");
     
-    // 3. AGREGAR COMPONENTES AL ARRAY POLIMÓRFICO
     for (int i = 0; i < 8; i++) {
         componentes[numComponentes++] = leds[i];
     }
@@ -384,7 +383,6 @@ void setup() {
         componentes[numComponentes++] = botones[i];
     }
     
-    // 4. INICIALIZAR TODOS LOS COMPONENTES
     Serial.println("\n=== INICIALIZANDO COMPONENTES ===");
     for (int i = 0; i < numComponentes; i++) {
         componentes[i]->iniciar();
@@ -405,30 +403,17 @@ void setup() {
     Serial.println("GPIO33: Patio Trasero");
     Serial.println("GPIO32: Patio Interior");
     
-    Serial.println("\n=== MODOS IMPLEMENTADOS ===");
+    Serial.println("\n=== MODOS CON BRILLOS ===");
     Serial.println("NOCHE: 20% (51)");
     Serial.println("LECTURA: 40% (102)");
     Serial.println("RELAJ: 30% (76)");
-    Serial.println("FIESTA: Animación secuencial");
-    Serial.println("AUTO: Control por LDR (umbral 400)");
-    Serial.println("MANUAL: Control por botones");
-    
-    // 5. APAGAR TODOS LOS LEDs INICIALMENTE
-    for (int i = 0; i < 8; i++) {
-        leds[i]->apagar();
-    }
-    
-    // 6. MOSTRAR MENSAJE INICIAL EN LCD
-    lcd.mostrarInfo(0, "INICIO", 0);
-    
-    Serial.println("\n=== SISTEMA LISTO ===");
-    Serial.println("LCD mostrando información del sistema");
+    Serial.println("AUTO: Umbral 400");
+    Serial.println("MANUAL: Todos apagados al inicio");
     Serial.println("===================================\n");
 }
 
-// ================= LOOP PRINCIPAL =================
 void loop() {
-    // 1. LEER SENSORES
+    // 1. LEER LDR CORRECTAMENTE
     int valorLDR = ldr.leer();
     bool estaOscuro = ldr.esOscuro();
     
@@ -441,7 +426,7 @@ void loop() {
         modos.cambiarModoAuto();
     }
     
-    // 4. CONTROL MANUAL DE LEDs (solo en modo MANUAL)
+    // 4. CONTROL MANUAL DE LEDs
     if (modos.esModoManual()) {
         for (int i = 1; i <= 8; i++) {
             if (botones[i]->presionado()) {
@@ -459,13 +444,14 @@ void loop() {
     // 5. APLICAR MODO ACTUAL A LEDs
     if (!modos.esModoManual()) {
         if (modos.esModoFiesta()) {
-            // Modo FIESTA (animación)
+            // Modo FIESTA
             modos.manejarModoFiesta(leds, 8);
         } else {
             // Otros modos (NOCHE, LECTURA, RELAJ, AUTO)
             int brillo = modos.getBrilloPorModo(valorLDR);
             
             if (brillo >= 0) {
+                // Solo aplicar si es modo AUTO o si auto está activado
                 if (modos.esModoAuto() || modos.isAutoActivo()) {
                     for (int i = 0; i < 8; i++) {
                         leds[i]->setBrillo(brillo);
@@ -481,10 +467,9 @@ void loop() {
         if (leds[i]->estaEncendido()) ledsOn++;
     }
     
-    // 7. MOSTRAR INFORMACIÓN EN LCD
+    // 7. MOSTRAR EN LCD 
     lcd.mostrarInfo(valorLDR, modos.getModoActual(), ledsOn);
     
-    // 8. LOG EN SERIAL
     static unsigned long ultimoLog = 0;
     if (millis() - ultimoLog > 1000) {
         Serial.print("LDR: ");
