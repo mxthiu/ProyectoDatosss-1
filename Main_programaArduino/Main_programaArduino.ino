@@ -79,20 +79,16 @@ public:
     
     void iniciar() override {
         pinMode(pin, INPUT);
-        Serial.print("Sensor LDR inicializado en GPIO");
-        Serial.println(pin);
     }
     
-    void escribir(int valor) override {
-        // No aplica para sensor
-    }
+    void escribir(int valor) override {}
     
     int leer() override {
         return analogRead(pin);
     }
     
     bool esOscuro() {
-        return leer() <= UMBRAL_LDR;  // <= 400 es oscuro
+        return leer() <= UMBRAL_LDR;
     }
 };
 
@@ -103,8 +99,6 @@ public:
     
     void iniciar() override {
         pinMode(pin, INPUT);
-        Serial.print("Potenciómetro inicializado en GPIO");
-        Serial.println(pin);
     }
     
     void escribir(int valor) override {}
@@ -120,15 +114,44 @@ public:
     }
 };
 
-// ================= CLASE BOTÓN (ESQUELETO) =================
+// ================= CLASE BOTÓN (COMPLETA) =================
 class Boton : public Componente {
-public:
-    Boton() : Componente(0, "Boton") {}
-    Boton(int p, String n = "Boton") : Componente(p, n) {}
+private:
+    bool estadoAnterior;
+    unsigned long ultimoDebounce;
     
-    void iniciar() override {}
+public:
+    Boton() : Componente(0, "Boton"), estadoAnterior(HIGH), ultimoDebounce(0) {}
+    Boton(int p, String n = "Boton") : Componente(p, n), estadoAnterior(HIGH), ultimoDebounce(0) {}
+    
+    void iniciar() override {
+        if (pin != 0) {
+            pinMode(pin, INPUT_PULLUP);
+        }
+    }
+    
     void escribir(int valor) override {}
-    int leer() override { return HIGH; }
+    
+    int leer() override {
+        if (pin == 0) return HIGH;
+        return digitalRead(pin);
+    }
+    
+    bool presionado() {
+        if (pin == 0) return false;
+        
+        bool actual = digitalRead(pin);
+        bool presion = (estadoAnterior == HIGH && actual == LOW);
+        
+        if (presion && (millis() - ultimoDebounce > 50)) {
+            estadoAnterior = actual;
+            ultimoDebounce = millis();
+            return true;
+        }
+        
+        estadoAnterior = actual;
+        return false;
+    }
 };
 
 // ================= CLASE LCD (ESQUELETO) =================
@@ -146,9 +169,10 @@ class SistemaModos {
 private:
     const char* nombresModos[6] = {"NOCHE", "LECTURA", "RELAJ", "FIESTA", "AUTO", "MANUAL"};
     int modoActual;
+    bool autoActivo;
     
 public:
-    SistemaModos() : modoActual(0) {}
+    SistemaModos() : modoActual(0), autoActivo(true) {}
     
     String getModoActual() {
         return String(nombresModos[modoActual]);
@@ -157,40 +181,55 @@ public:
     void cambiarModo(int nuevoModo) {
         if (nuevoModo >= 0 && nuevoModo <= 5) {
             modoActual = nuevoModo;
-            Serial.print("Modo cambiado a: ");
-            Serial.println(getModoActual());
         }
     }
     
     void cambiarModoAuto() {
         modoActual = 4; // Modo AUTO
-        Serial.println("Modo AUTO activado");
+        autoActivo = true;
+        Serial.println("Atajo P4: Modo AUTO activado");
     }
     
-    bool isAutoActivo() { return true; }
+    void toggleAuto() {
+        autoActivo = !autoActivo;
+        Serial.print("Auto: ");
+        Serial.println(autoActivo ? "ACTIVADO" : "DESACTIVADO");
+    }
+    
+    bool isAutoActivo() {
+        return autoActivo;
+    }
     
     int getBrilloPorModo(int valorLDR) {
         switch(modoActual) {
             case 0: // NOCHE
-                return 51; // 20%
+                return 51;
             case 1: // LECTURA
-                return 102; // 40%
+                return 102;
             case 2: // RELAJACIÓN
-                return 76; // 30%
+                return 76;
             case 3: // FIESTA
-                return 0; // Se maneja aparte
+                return 0;
             case 4: // AUTOMÁTICO
                 return (valorLDR <= UMBRAL_LDR) ? 255 : 0;
             case 5: // MANUAL
-                return -1; // Control manual
+                return -1;
             default:
                 return 100;
         }
     }
     
-    bool esModoManual() { return modoActual == 5; }
-    bool esModoAuto() { return modoActual == 4; }
-    bool esModoFiesta() { return modoActual == 3; }
+    bool esModoManual() {
+        return modoActual == 5;
+    }
+    
+    bool esModoAuto() {
+        return modoActual == 4;
+    }
+    
+    bool esModoFiesta() {
+        return modoActual == 3;
+    }
 };
 
 // ================= INSTANCIAS =================
@@ -207,7 +246,7 @@ int numComponentes = 0;
 void setup() {
     Serial.begin(115200);
     Serial.println("=== INICIANDO CASA INTELIGENTE ===");
-    Serial.println("Commit 3: Sensores LDR y potenciómetro implementados");
+    Serial.println("Commit 4: Sistema de botones implementado");
     Serial.println("Umbral LDR: <= 400 = OSCURO (LEDs ON)");
     
     // 1. INICIALIZAR LEDs
@@ -220,44 +259,92 @@ void setup() {
     leds[6] = new LED(13, "PATIO TRASERO");
     leds[7] = new LED(18, "PATIO INTERIOR");
     
-    // 2. INICIALIZAR COMPONENTES
+    // 2. INICIALIZAR BOTONES
+    botones[0] = new Boton(4, "P4 AtajoAuto");
+    botones[1] = new Boton(26, "Boton C1");
+    botones[2] = new Boton(27, "Boton C2");
+    botones[3] = new Boton(14, "Boton C3");
+    botones[4] = new Boton(2, "Boton Sala");
+    botones[5] = new Boton(12, "Boton Cocina");
+    botones[6] = new Boton(25, "Boton P.Del");
+    botones[7] = new Boton(33, "Boton P.Tras");
+    botones[8] = new Boton(32, "Boton P.Int");
+    
+    // 3. AGREGAR COMPONENTES AL ARRAY POLIMÓRFICO
     for (int i = 0; i < 8; i++) {
-        leds[i]->iniciar();
         componentes[numComponentes++] = leds[i];
     }
     
-    ldr.iniciar();
     componentes[numComponentes++] = &ldr;
-    
-    pot.iniciar();
     componentes[numComponentes++] = &pot;
-    
     componentes[numComponentes++] = &lcd;
     
-    Serial.println("\n=== SENSORES INICIALIZADOS ===");
-    Serial.print("Total componentes: ");
-    Serial.println(numComponentes);
+    for (int i = 0; i < 9; i++) {
+        componentes[numComponentes++] = botones[i];
+    }
     
-    // 3. DEMOSTRACIÓN: Apagar todos los LEDs
+    // 4. INICIALIZAR TODOS LOS COMPONENTES (POLIMORFISMO)
+    Serial.println("\n=== INICIALIZANDO COMPONENTES ===");
+    for (int i = 0; i < numComponentes; i++) {
+        componentes[i]->iniciar();
+        Serial.print("- ");
+        Serial.print(componentes[i]->getNombre());
+        Serial.print(" en GPIO");
+        Serial.println(componentes[i]->getPin());
+    }
+    
+    Serial.println("\n=== BOTONES CONFIGURADOS ===");
+    Serial.println("P4 (GPIO4): Atajo a Modo AUTO");
+    Serial.println("GPIO26: Cuarto 1");
+    Serial.println("GPIO27: Cuarto 2");
+    Serial.println("GPIO14: Cuarto 3");
+    Serial.println("GPIO2: Sala");
+    Serial.println("GPIO12: Cocina");
+    Serial.println("GPIO25: Patio Delantero");
+    Serial.println("GPIO33: Patio Trasero");
+    Serial.println("GPIO32: Patio Interior");
+    
+    // 5. APAGAR TODOS LOS LEDs INICIALMENTE
     for (int i = 0; i < 8; i++) {
         leds[i]->apagar();
     }
     
-    Serial.println("Todos los LEDs apagados");
+    Serial.println("\n=== SISTEMA LISTO ===");
+    Serial.println("Modo MANUAL: Use botones 1-8 para controlar LEDs");
     Serial.println("===================================\n");
 }
 
-// ================= LOOP =================
+// ================= LOOP PRINCIPAL =================
 void loop() {
     // 1. LEER SENSORES
     int valorLDR = ldr.leer();
     bool estaOscuro = ldr.esOscuro();
-    int modoPot = pot.getModo();
     
-    // 2. ACTUALIZAR MODO
+    // 2. ACTUALIZAR MODO CON POTENCIÓMETRO
+    int modoPot = pot.getModo();
     modos.cambiarModo(modoPot);
     
-    // 3. APLICAR MODO A LEDs (excepto MANUAL)
+    // 3. BOTÓN P4 COMO ATAJO AL MODO AUTO
+    if (botones[0]->presionado()) {
+        modos.cambiarModoAuto();
+    }
+    
+    // 4. CONTROL MANUAL DE LEDs (solo en modo MANUAL)
+    if (modos.esModoManual()) {
+        for (int i = 1; i <= 8; i++) {
+            if (botones[i]->presionado()) {
+                leds[i-1]->alternar();
+                Serial.print("MANUAL - LED ");
+                Serial.print(i);
+                Serial.print(" (");
+                Serial.print(leds[i-1]->getNombre());
+                Serial.print("): ");
+                Serial.println(leds[i-1]->estaEncendido() ? "ON" : "OFF");
+            }
+        }
+    }
+    
+    // 5. APLICAR MODO ACTUAL A LEDs
     if (!modos.esModoManual()) {
         int brillo = modos.getBrilloPorModo(valorLDR);
         
@@ -270,15 +357,15 @@ void loop() {
         }
     }
     
-    // 4. CONTAR LEDs ENCENDIDOS
+    // 6. CONTAR LEDs ENCENDIDOS
     int ledsOn = 0;
     for (int i = 0; i < 8; i++) {
         if (leds[i]->estaEncendido()) ledsOn++;
     }
     
-    // 5. LOG EN SERIAL
+    // 7. LOG EN SERIAL
     static unsigned long ultimoLog = 0;
-    if (millis() - ultimoLog > 2000) {
+    if (millis() - ultimoLog > 1000) {
         Serial.print("LDR: ");
         Serial.print(valorLDR);
         Serial.print(" | ");
@@ -286,6 +373,8 @@ void loop() {
         Serial.print(" (<=400)");
         Serial.print(" | Modo: ");
         Serial.print(modos.getModoActual());
+        Serial.print(" | Auto: ");
+        Serial.print(modos.isAutoActivo() ? "ON" : "OFF");
         Serial.print(" | LEDs: ");
         Serial.print(ledsOn);
         Serial.println("/8");
@@ -293,5 +382,5 @@ void loop() {
         ultimoLog = millis();
     }
     
-    delay(100);
+    delay(50);
 }
