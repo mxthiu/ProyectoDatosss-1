@@ -154,14 +154,84 @@ public:
     }
 };
 
-// ================= CLASE LCD (ESQUELETO) =================
+// ================= CLASE LCD (COMPLETA) =================
 class PantallaLCD : public Componente {
-public:
-    PantallaLCD(String n = "LCD") : Componente(0, n) {}
+private:
+    bool lcdInicializado;
     
-    void iniciar() override {}
+public:
+    PantallaLCD(String n = "LCD") : Componente(0, n), lcdInicializado(false) {}
+    
+    void iniciar() override {
+        Wire.begin(SDA_PIN, SCL_PIN);
+        delay(100);
+        
+        // Inicialización estándar de LCD 16x2
+        enviarComando(0x03);
+        delay(5);
+        enviarComando(0x03);
+        delay(1);
+        enviarComando(0x03);
+        delay(10);
+        
+        enviarComando(0x02);
+        delay(1);
+        
+        enviarComando(0x28);
+        enviarComando(0x0C);
+        enviarComando(0x06);
+        enviarComando(0x01);
+        delay(2);
+        
+        lcdInicializado = true;
+        Serial.println("LCD inicializado correctamente");
+    }
+    
     void escribir(int valor) override {}
+    
     int leer() override { return 0; }
+    
+    void mostrarInfo(int valorLDR, String modo, int ledsEncendidos) {
+        if (!lcdInicializado) return;
+        
+        // Limpiar display
+        enviarComando(0x01);
+        delay(2);
+        
+        // Línea 1: "LDR:345 LED:3/8"
+        String linea1 = "LDR:" + String(valorLDR) + "  LED:" + String(ledsEncendidos) + "/8";
+        escribirLinea(linea1, 0, 0);
+        
+        // Línea 2: Modo actual
+        String linea2 = "Modo " + modo;
+        escribirLinea(linea2, 0, 1);
+    }
+    
+private:
+    void enviarByte(uint8_t valor, uint8_t modo) {
+        uint8_t alta = (valor & 0xF0) | 0x08 | modo;
+        uint8_t baja = ((valor << 4) & 0xF0) | 0x08 | modo;
+        
+        Wire.beginTransmission(LCD_ADDR);
+        Wire.write(alta); Wire.write(alta | 0x04); Wire.write(alta);
+        Wire.write(baja); Wire.write(baja | 0x04); Wire.write(baja);
+        Wire.endTransmission();
+        delayMicroseconds(100);
+    }
+    
+    void enviarComando(uint8_t cmd) {
+        enviarByte(cmd, 0);
+    }
+    
+    void escribirLinea(String texto, uint8_t col, uint8_t fila) {
+        uint8_t direccion = (fila == 0) ? 0x80 : 0xC0;
+        direccion += col;
+        enviarComando(direccion);
+        
+        for (int i = 0; i < texto.length() && i < 16; i++) {
+            enviarByte(texto.charAt(i), 1);
+        }
+    }
 };
 
 // ================= SISTEMA DE MODOS (COMPLETO) =================
@@ -277,7 +347,7 @@ int numComponentes = 0;
 void setup() {
     Serial.begin(115200);
     Serial.println("=== INICIANDO CASA INTELIGENTE ===");
-    Serial.println("Commit 5: Sistema de modos completo implementado");
+    Serial.println("Commit 6: Pantalla LCD implementada");
     Serial.println("Umbral LDR: <= 400 = OSCURO (LEDs ON)");
     
     // 1. INICIALIZAR LEDs
@@ -314,7 +384,7 @@ void setup() {
         componentes[numComponentes++] = botones[i];
     }
     
-    // 4. INICIALIZAR COMPONENTES
+    // 4. INICIALIZAR TODOS LOS COMPONENTES
     Serial.println("\n=== INICIALIZANDO COMPONENTES ===");
     for (int i = 0; i < numComponentes; i++) {
         componentes[i]->iniciar();
@@ -348,7 +418,11 @@ void setup() {
         leds[i]->apagar();
     }
     
+    // 6. MOSTRAR MENSAJE INICIAL EN LCD
+    lcd.mostrarInfo(0, "INICIO", 0);
+    
     Serial.println("\n=== SISTEMA LISTO ===");
+    Serial.println("LCD mostrando información del sistema");
     Serial.println("===================================\n");
 }
 
@@ -407,8 +481,8 @@ void loop() {
         if (leds[i]->estaEncendido()) ledsOn++;
     }
     
-    // 7. MOSTRAR EN LCD (próximo commit)
-    // lcd.mostrarInfo(valorLDR, modos.getModoActual(), ledsOn);
+    // 7. MOSTRAR INFORMACIÓN EN LCD
+    lcd.mostrarInfo(valorLDR, modos.getModoActual(), ledsOn);
     
     // 8. LOG EN SERIAL
     static unsigned long ultimoLog = 0;
